@@ -8,214 +8,32 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.ceil
 
-private const val PREFS = "mi_negocio_sv"
-private const val PRODUCTS = "products"
-private const val SALES_COUNT = "sales_count"
-private const val SALES_TOTAL = "sales_total"
-private const val SALES_PROFIT = "sales_profit"
-
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent { App(applicationContext) }
-    }
-}
-
-private fun createReceipt(context: Context, quantity: String, unit: String, cost: String, price: String): File {
-    val dir = File(context.cacheDir, "comprobantes")
-    dir.mkdirs()
-    val file = File(dir, "comprobante_venta.pdf")
-    val document = PdfDocument()
-    val page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, 1).create())
-    val canvas = page.canvas
-    val paint = android.graphics.Paint()
-    paint.textSize = 22f
-    canvas.drawText("MI NEGOCIO SV", 50f, 70f, paint)
-    paint.textSize = 16f
-    canvas.drawText("COMPROBANTE DE VENTA", 50f, 105f, paint)
-    canvas.drawText("Cantidad: $quantity $unit", 50f, 160f, paint)
-    canvas.drawText("Costo: $$cost", 50f, 195f, paint)
-    canvas.drawText("Venta: $$price", 50f, 230f, paint)
-    val c = cost.toDoubleOrNull() ?: 0.0
-    val p = price.toDoubleOrNull() ?: 0.0
-    canvas.drawText("Ganancia: $%.2f".format(p - c), 50f, 265f, paint)
-    canvas.drawText("Gracias por su compra", 50f, 330f, paint)
-    document.finishPage(page)
-    file.outputStream().use { document.writeTo(it) }
-    document.close()
-    return file
-}
-
-private fun shareReceipt(context: Context, file: File) {
-    val uri: Uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "application/pdf"
-        putExtra(Intent.EXTRA_STREAM, uri)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    context.startActivity(Intent.createChooser(intent, "Compartir comprobante"))
-}
-
-@Composable
-private fun App(context: Context) {
-    val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
-    var screen by remember { mutableStateOf("inicio") }
-    var products by remember { mutableStateOf(prefs.getStringSet(PRODUCTS, emptySet())?.toList() ?: emptyList()) }
-    var salesCount by remember { mutableStateOf(prefs.getInt(SALES_COUNT, 0)) }
-    var salesTotal by remember { mutableStateOf(prefs.getFloat(SALES_TOTAL, 0f).toDouble()) }
-    var salesProfit by remember { mutableStateOf(prefs.getFloat(SALES_PROFIT, 0f).toDouble()) }
-
-    fun addProduct(name: String) {
-        val clean = name.trim()
-        if (clean.isNotEmpty()) {
-            products = products + clean
-            prefs.edit().putStringSet(PRODUCTS, products.toSet()).apply()
-        }
-    }
-
-    fun addSale(total: Double, profit: Double) {
-        salesCount += 1
-        salesTotal += total
-        salesProfit += profit
-        prefs.edit().putInt(SALES_COUNT, salesCount)
-            .putFloat(SALES_TOTAL, salesTotal.toFloat())
-            .putFloat(SALES_PROFIT, salesProfit.toFloat()).apply()
-    }
-
-    MaterialTheme {
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().padding(20.dp)) {
-                Text("Mi Negocio SV", style = MaterialTheme.typography.headlineLarge)
-                Text("Tu negocio, más fácil.", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(20.dp))
-                when (screen) {
-                    "inicio" -> HomeScreen(salesCount, salesTotal, salesProfit, products.size,
-                        { screen = "productos" }, { screen = "ventas" }, { screen = "papa" })
-                    "productos" -> ProductsScreen(products, ::addProduct) { screen = "inicio" }
-                    "papa" -> PotatoScreen { screen = "inicio" }
-                    else -> SalesScreen(context, ::addSale) { screen = "inicio" }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeScreen(count: Int, total: Double, profit: Double, productCount: Int,
-                       onProducts: () -> Unit, onSales: () -> Unit, onPotatoes: () -> Unit) {
-    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Resumen", style = MaterialTheme.typography.titleLarge)
-            Text("Ventas: $count")
-            Text("Total vendido: $%.2f".format(total), style = MaterialTheme.typography.headlineMedium)
-            Text("Ganancia: $%.2f".format(profit))
-            Text("Productos: $productCount")
-        }
-    }
-    Spacer(Modifier.height(16.dp))
-    Button(onClick = onProducts, Modifier.fillMaxWidth()) { Text("Productos") }
-    Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = onSales, Modifier.fillMaxWidth()) { Text("Ventas") }
-    Spacer(Modifier.height(8.dp))
-    OutlinedButton(onClick = onPotatoes, Modifier.fillMaxWidth()) { Text("Calculadora de papa") }
-}
-
-@Composable
-private fun ProductsScreen(products: List<String>, addProduct: (String) -> Unit, onBack: () -> Unit) {
-    var name by remember { mutableStateOf("") }
-    Text("Productos", style = MaterialTheme.typography.headlineMedium)
-    Spacer(Modifier.height(12.dp))
-    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Nombre del producto") }, modifier = Modifier.fillMaxWidth())
-    Spacer(Modifier.height(8.dp))
-    Button(enabled = name.trim().isNotEmpty(), onClick = { addProduct(name); name = "" }, modifier = Modifier.fillMaxWidth()) { Text("Guardar producto") }
-    Spacer(Modifier.height(12.dp))
-    products.forEachIndexed { index, item -> Text("${index + 1}. $item") }
-    Spacer(Modifier.height(16.dp))
-    OutlinedButton(onClick = onBack) { Text("Volver al inicio") }
-}
-
-@Composable
-private fun PotatoScreen(onBack: () -> Unit) {
-    var costText by remember { mutableStateOf("") }
-    var weightText by remember { mutableStateOf("90") }
-    var marginText by remember { mutableStateOf("20") }
-    val cost = costText.toDoubleOrNull()
-    val weight = weightText.toDoubleOrNull()
-    val margin = marginText.toDoubleOrNull()
-    val costLb = if (cost != null && weight != null && weight > 0) cost / weight else null
-    val targetLb = if (costLb != null && margin != null && margin >= 0 && margin < 100) costLb * (1 + margin / 100) else null
-    val lbPerDollar = if (targetLb != null && targetLb > 0) 1 / targetLb else null
-    val revenue = if (targetLb != null && weight != null) targetLb * weight else null
-
-    Text("Calculadora de papa", style = MaterialTheme.typography.headlineMedium)
-    Spacer(Modifier.height(8.dp))
-    Text("Calcula el precio y cuántas libras vender por $1.")
-    Spacer(Modifier.height(10.dp))
-    OutlinedTextField(value = costText, onValueChange = { costText = it }, label = { Text("Costo del quintal ($)") }, modifier = Modifier.fillMaxWidth())
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(value = weightText, onValueChange = { weightText = it }, label = { Text("Libras del quintal") }, modifier = Modifier.fillMaxWidth())
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(value = marginText, onValueChange = { marginText = it }, label = { Text("Margen deseado (%)") }, modifier = Modifier.fillMaxWidth())
-    if (costLb != null) Text("Costo por libra: $%.4f".format(costLb))
-    if (targetLb != null) Text("Precio sugerido por libra: $%.4f".format(targetLb), style = MaterialTheme.typography.titleMedium)
-    if (lbPerDollar != null) Text("Vender %.2f lb por $1".format(lbPerDollar), style = MaterialTheme.typography.titleLarge)
-    if (revenue != null) Text("Ingreso sugerido por quintal: $%.2f".format(revenue))
-    if (lbPerDollar != null) Text("Redondeado: $1 cada %.0f lb".format(ceil(lbPerDollar)))
-    Spacer(Modifier.height(16.dp))
-    OutlinedButton(onClick = onBack) { Text("Volver al inicio") }
-}
-
-@Composable
-private fun SalesScreen(context: Context, addSale: (Double, Double) -> Unit, onBack: () -> Unit) {
-    var quantityText by remember { mutableStateOf("1") }
-    var costText by remember { mutableStateOf("") }
-    var priceText by remember { mutableStateOf("") }
-    var unit by remember { mutableStateOf("Unidad") }
-    var marginText by remember { mutableStateOf("20") }
-    val quantity = quantityText.toDoubleOrNull()
-    val cost = costText.toDoubleOrNull()
-    val price = priceText.toDoubleOrNull()
-    val margin = marginText.toDoubleOrNull()
-    val recommended = if (cost != null && margin != null && margin >= 0 && margin < 100) cost * (1 + margin / 100) else null
-
-    Text("Nueva venta", style = MaterialTheme.typography.headlineMedium)
-    Spacer(Modifier.height(12.dp))
-    OutlinedTextField(value = quantityText, onValueChange = { quantityText = it }, label = { Text("Cantidad") }, modifier = Modifier.fillMaxWidth())
-    Spacer(Modifier.height(8.dp))
-    Text("Unidad: $unit")
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        listOf("Unidad", "Libra", "Arroba", "Quintal", "Saco").forEach { option ->
-            OutlinedButton(onClick = { unit = option }) { Text(option) }
-        }
-    }
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(value = costText, onValueChange = { costText = it }, label = { Text("Costo total") }, modifier = Modifier.fillMaxWidth())
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(value = marginText, onValueChange = { marginText = it }, label = { Text("Margen deseado (%)") }, modifier = Modifier.fillMaxWidth())
-    if (recommended != null) Text("Precio recomendado: $%.2f".format(recommended), style = MaterialTheme.typography.titleMedium)
-    Spacer(Modifier.height(8.dp))
-    OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text("Precio de venta total") }, modifier = Modifier.fillMaxWidth())
-    if (quantity != null && quantity > 0 && cost != null && price != null) {
-        Text("Ganancia: $%.2f".format(price - cost))
-        Text("Margen real: %.1f%%".format(if (price > 0) (price - cost) / price * 100 else 0.0))
-        Text("Costo por $unit: $%.2f".format(cost / quantity))
-        Text("Venta por $unit: $%.2f".format(price / quantity))
-    }
-    Spacer(Modifier.height(12.dp))
-    Button(enabled = quantity != null && quantity > 0 && cost != null && cost >= 0 && price != null && price >= cost,
-        onClick = { addSale(price!!, price - cost!!); quantityText = "1"; costText = ""; priceText = "" }, modifier = Modifier.fillMaxWidth()) { Text("Registrar venta") }
-    Spacer(Modifier.height(8.dp))
-    OutlinedButton(enabled = quantity != null && cost != null && price != null,
-        onClick = { shareReceipt(context, createReceipt(context, quantityText, unit, costText, priceText)) }, modifier = Modifier.fillMaxWidth()) { Text("Compartir comprobante PDF") }
-    Spacer(Modifier.height(16.dp))
-    OutlinedButton(onClick = onBack) { Text("Volver al inicio") }
-}
+private const val PREFS="mi_negocio_sv"; private const val PRODUCTS="products"; private const val SALES="sales"; private const val COUNT="count"; private const val TOTAL="total"; private const val PROFIT="profit"; private const val STOCK="stock"
+class MainActivity:ComponentActivity(){override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState);setContent{App(applicationContext)}}}
+private fun receipt(c:Context,q:String,u:String,cost:String,price:String):File{val d=File(c.cacheDir,"comprobantes");d.mkdirs();val f=File(d,"comprobante_venta.pdf");val doc=PdfDocument();val page=doc.startPage(PdfDocument.PageInfo.Builder(595,842,1).create());val p=android.graphics.Paint();p.textSize=22f;page.canvas.drawText("MI NEGOCIO SV",50f,70f,p);p.textSize=16f;page.canvas.drawText("COMPROBANTE DE VENTA",50f,105f,p);page.canvas.drawText("Cantidad: $q $u",50f,160f,p);page.canvas.drawText("Costo: $$cost",50f,195f,p);page.canvas.drawText("Venta: $$price",50f,230f,p);val g=(price.toDoubleOrNull()?:0.0)-(cost.toDoubleOrNull()?:0.0);page.canvas.drawText("Ganancia: $%.2f".format(g),50f,265f,p);page.canvas.drawText("Gracias por su compra",50f,330f,p);doc.finishPage(page);f.outputStream().use{doc.writeTo(it)};doc.close();return f}
+private fun share(c:Context,f:File){val uri=FileProvider.getUriForFile(c,"${c.packageName}.fileprovider",f);c.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply{type="application/pdf";putExtra(Intent.EXTRA_STREAM,uri);addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)},"Compartir comprobante"))}
+@Composable private fun App(c:Context){val p=remember{c.getSharedPreferences(PREFS,0)};var page by remember{mutableStateOf("home")};var products by remember{mutableStateOf(p.getStringSet(PRODUCTS,emptySet())?.toList()?:emptyList())};var sales by remember{mutableStateOf(p.getStringSet(SALES,emptySet())?.toList()?.reversed()?:emptyList())};var stock by remember{mutableStateOf(p.getFloat(STOCK,0f).toDouble())};var count by remember{mutableStateOf(p.getInt(COUNT,0))};var total by remember{mutableStateOf(p.getFloat(TOTAL,0f).toDouble())};var profit by remember{mutableStateOf(p.getFloat(PROFIT,0f).toDouble())}
+fun product(n:String){if(n.trim().isNotEmpty()){products=products+n.trim();p.edit().putStringSet(PRODUCTS,products.toSet()).apply()}}
+fun sale(t:Double,g:Double,detail:String){count++;total+=t;profit+=g;sales=(sales+detail).takeLast(100);p.edit().putInt(COUNT,count).putFloat(TOTAL,total.toFloat()).putFloat(PROFIT,profit.toFloat()).putStringSet(SALES,sales.toSet()).apply()}
+fun clearSales(){sales=emptyList();count=0;total=0.0;profit=0.0;p.edit().remove(SALES).putInt(COUNT,0).putFloat(TOTAL,0f).putFloat(PROFIT,0f).apply()}
+MaterialTheme{Surface(Modifier.fillMaxSize()){Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp)){Text("Mi Negocio SV",style=MaterialTheme.typography.headlineLarge);Text("Controla tus ventas e inventario",style=MaterialTheme.typography.titleMedium);Spacer(Modifier.height(18.dp));when(page){"home"->Home(count,total,profit,products.size,stock,{page="products"},{page="sale"},{page="potato"},{page="history"},{page="inventory"});"products"->Products(products,::product){page="home"};"sale"->SaleScreen(c,::sale){page="home"};"potato"->Potato{page="home"};"history"->History(sales,::clearSales){page="home"};else->Inventory(stock,{v->stock+=v;p.edit().putFloat(STOCK,stock.toFloat()).apply()}){page="home"}}}}}}
+@Composable private fun Home(n:Int,t:Double,g:Double,pc:Int,s:Double,a:()->Unit,b:()->Unit,c:()->Unit,d:()->Unit,e:()->Unit,f:()->Unit){Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(20.dp)){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){Text("Resumen",style=MaterialTheme.typography.titleLarge);Text("Ventas: $n");Text("Vendido: $%.2f".format(t),style=MaterialTheme.typography.headlineSmall);Text("Ganancia: $%.2f".format(g));Text("Productos: $pc");Text("Inventario: %.2f unidades".format(s))}};Spacer(Modifier.height(12.dp));Button(a,Modifier.fillMaxWidth()){Text("Productos")};Spacer(Modifier.height(6.dp));Button(b,Modifier.fillMaxWidth()){Text("Nueva venta")};Spacer(Modifier.height(6.dp));OutlinedButton(c,Modifier.fillMaxWidth()){Text("Calculadora de papa")};Spacer(Modifier.height(6.dp));OutlinedButton(d,Modifier.fillMaxWidth()){Text("Historial")};Spacer(Modifier.height(6.dp));OutlinedButton(e,Modifier.fillMaxWidth()){Text("Inventario")}}
+@Composable private fun Products(list:List<String>,add:(String)->Unit,back:()->Unit){var n by remember{mutableStateOf("")};Text("Productos",style=MaterialTheme.typography.headlineMedium);Spacer(Modifier.height(10.dp));OutlinedTextField(n,{n=it},label={Text("Nombre")},modifier=Modifier.fillMaxWidth());Spacer(Modifier.height(8.dp));Button(n.isNotBlank(),{add(n);n=""},Modifier.fillMaxWidth()){Text("Agregar")};Spacer(Modifier.height(12.dp));list.forEachIndexed{i,x->Card(Modifier.fillMaxWidth().padding(bottom=5.dp)){Text("${i+1}. $x",Modifier.padding(12.dp))}};OutlinedButton(back){Text("Volver")}}
+@Composable private fun SaleScreen(c:Context,save:(Double,Double,String)->Unit,back:()->Unit){var q by remember{mutableStateOf("1")};var cost by remember{mutableStateOf("")};var price by remember{mutableStateOf("")};var unit by remember{mutableStateOf("Unidad")};var margin by remember{mutableStateOf("20")};val qq=q.toDoubleOrNull();val cc=cost.toDoubleOrNull();val pp=price.toDoubleOrNull();val mm=margin.toDoubleOrNull();val rec=if(cc!=null&&mm!=null&&mm<100)cc*(1+mm/100)else null;Text("Nueva venta",style=MaterialTheme.typography.headlineMedium);Spacer(Modifier.height(8.dp));OutlinedTextField(q,{q=it},label={Text("Cantidad")},modifier=Modifier.fillMaxWidth());Text("Unidad: $unit");Row(horizontalArrangement=Arrangement.spacedBy(3.dp)){listOf("Unidad","Libra","Arroba","Quintal","Saco").forEach{u->OutlinedButton({unit=u}){Text(u)}}};OutlinedTextField(cost,{cost=it},label={Text("Costo total")},modifier=Modifier.fillMaxWidth());OutlinedTextField(margin,{margin=it},label={Text("Margen %")},modifier=Modifier.fillMaxWidth());if(rec!=null)Text("Precio recomendado: $%.2f".format(rec));OutlinedTextField(price,{price=it},label={Text("Precio de venta")},modifier=Modifier.fillMaxWidth());if(cc!=null&&pp!=null)Text("Ganancia: $%.2f   Margen: %.1f%%".format(pp-cc,(pp-cc)/pp*100));Button(qq!=null&&qq>0&&cc!=null&&pp!=null&&pp>=cc,{val g=pp!!-cc!!;save(pp,g,"${SimpleDateFormat("dd/MM HH:mm",Locale.getDefault()).format(Date())} — $%.2f $unit — venta $%.2f — ganancia $%.2f".format(qq,pp,g));q="1";cost="";price=""},Modifier.fillMaxWidth()){Text("Registrar venta")};OutlinedButton(pp!=null&&cc!=null,{share(c,receipt(c,q,unit,cost,price))},Modifier.fillMaxWidth()){Text("Compartir PDF")};OutlinedButton(back){Text("Volver")}}
+@Composable private fun Potato(back:()->Unit){var c by remember{mutableStateOf("")};var w by remember{mutableStateOf("90")};var m by remember{mutableStateOf("20")};val x=c.toDoubleOrNull();val y=w.toDoubleOrNull();val z=m.toDoubleOrNull();val lb=if(x!=null&&y!=null&&y>0)x/y else null;val target=if(lb!=null&&z!=null&&z<100)lb*(1+z/100)else null;val per=if(target!=null&&target>0)1/target else null;Text("Calculadora de papa",style=MaterialTheme.typography.headlineMedium);OutlinedTextField(c,{c=it},label={Text("Costo quintal $")},modifier=Modifier.fillMaxWidth());OutlinedTextField(w,{w=it},label={Text("Libras")},modifier=Modifier.fillMaxWidth());OutlinedTextField(m,{m=it},label={Text("Margen %")},modifier=Modifier.fillMaxWidth());if(lb!=null)Text("Costo/lb: $%.4f".format(lb));if(target!=null)Text("Precio/lb: $%.4f".format(target),style=MaterialTheme.typography.titleLarge);if(per!=null)Text("Vender %.2f lb por $1".format(per),style=MaterialTheme.typography.headlineSmall);if(per!=null)Text("Redondeado: %.0f lb por $1".format(ceil(per)));OutlinedButton(back){Text("Volver")}}
+@Composable private fun History(items:List<String>,clear:()->Unit,back:()->Unit){Text("Historial de ventas",style=MaterialTheme.typography.headlineMedium);Spacer(Modifier.height(10.dp));if(items.isEmpty())Text("No hay ventas registradas.")else{items.reversed().forEachIndexed{i,x->Card(Modifier.fillMaxWidth().padding(bottom=6.dp)){Text("${i+1}. $x",Modifier.padding(12.dp))}};OutlinedButton(clear){Text("Borrar historial")}};OutlinedButton(back){Text("Volver")}}
+@Composable private fun Inventory(value:Double,add:(Double)->Unit,back:()->Unit){var q by remember{mutableStateOf("")};Text("Inventario",style=MaterialTheme.typography.headlineMedium);Text("Existencia: %.2f".format(value),style=MaterialTheme.typography.headlineSmall);if(value<10)Text("⚠️ Inventario bajo",color=MaterialTheme.colorScheme.error);OutlinedTextField(q,{q=it},label={Text("Cantidad a agregar")},modifier=Modifier.fillMaxWidth());Button(q.toDoubleOrNull()!=null&&q.toDouble()>0,{add(q.toDouble());q=""},Modifier.fillMaxWidth()){Text("Agregar entrada")};OutlinedButton(back){Text("Volver")}}
