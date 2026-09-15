@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun HomeScreen() {
     var showProducts by remember { mutableStateOf(false) }
+    var showSales by remember { mutableStateOf(false) }
     MaterialTheme {
         Surface(Modifier.fillMaxSize()) {
             Column(
@@ -32,16 +33,22 @@ private fun HomeScreen() {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Tu negocio en un solo lugar", style = MaterialTheme.typography.titleLarge)
-                        Text("Controla tus productos y prepárate para registrar tus ventas.")
+                        Text("Controla tus productos y ventas desde tu teléfono.")
                     }
                 }
-                Button(onClick = { showProducts = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Productos")
+                if (!showProducts && !showSales) {
+                    Button(onClick = { showProducts = true }, modifier = Modifier.fillMaxWidth()) { Text("Productos") }
+                    OutlinedButton(onClick = { showSales = true }, modifier = Modifier.fillMaxWidth()) { Text("Ventas") }
                 }
                 if (showProducts) {
-                    Text("Sección Productos", style = MaterialTheme.typography.titleLarge)
-                    Text("Próximamente podrás agregar y controlar tus productos.")
+                    Text("Productos", style = MaterialTheme.typography.headlineSmall)
+                    Text("Aquí podrás agregar y controlar tus productos.")
                     OutlinedButton(onClick = { showProducts = false }) { Text("Volver") }
+                }
+                if (showSales) {
+                    Text("Ventas", style = MaterialTheme.typography.headlineSmall)
+                    Text("Aquí podrás registrar tus ventas y consultar tus comprobantes.")
+                    OutlinedButton(onClick = { showSales = false }) { Text("Volver") }
                 }
             }
         }
