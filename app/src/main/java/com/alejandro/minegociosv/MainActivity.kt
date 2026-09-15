@@ -1,5 +1,6 @@
 package com.alejandro.minegociosv
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,24 +11,34 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+private const val PREFS = "mi_negocio_sv"
+private const val PRODUCTS = "products"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { HomeScreen() }
+        setContent { HomeScreen(applicationContext) }
     }
 }
 
 @Composable
-private fun HomeScreen() {
+private fun HomeScreen(context: Context) {
+    val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
     var screen by remember { mutableStateOf("inicio") }
     var productName by remember { mutableStateOf("") }
-    var products by remember { mutableStateOf(listOf<String>()) }
+    var products by remember {
+        mutableStateOf(prefs.getStringSet(PRODUCTS, emptySet())?.toList() ?: emptyList())
+    }
+
+    fun saveProducts(list: List<String>) {
+        products = list
+        prefs.edit().putStringSet(PRODUCTS, list.toSet()).apply()
+    }
 
     MaterialTheme {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(20.dp)) {
                 Text("Mi Negocio SV", style = MaterialTheme.typography.headlineLarge)
-                Spacer(Modifier.height(4.dp))
                 Text("Tu negocio, más fácil.", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(20.dp))
 
@@ -58,13 +69,19 @@ private fun HomeScreen() {
                         )
                         Spacer(Modifier.height(8.dp))
                         Button(
-                            onClick = { products = products + productName.trim(); productName = "" },
+                            onClick = {
+                                val name = productName.trim()
+                                if (name.isNotEmpty()) {
+                                    saveProducts(products + name)
+                                    productName = ""
+                                }
+                            },
                             enabled = productName.trim().isNotEmpty(),
                             modifier = Modifier.fillMaxWidth()
-                        ) { Text("Agregar producto") }
+                        ) { Text("Guardar producto") }
                         Spacer(Modifier.height(12.dp))
                         products.forEachIndexed { index, name ->
-                            Text("${index + 1}. $name", style = MaterialTheme.typography.bodyLarge)
+                            Text("${index + 1}. $name")
                             Spacer(Modifier.height(4.dp))
                         }
                         Spacer(Modifier.height(16.dp))
