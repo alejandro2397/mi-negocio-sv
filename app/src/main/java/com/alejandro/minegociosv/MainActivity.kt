@@ -31,6 +31,7 @@ private fun HomeScreen(context: Context) {
     var productName by remember { mutableStateOf("") }
     var quantityText by remember { mutableStateOf("1") }
     var costText by remember { mutableStateOf("") }
+    var marginText by remember { mutableStateOf("20") }
     var priceText by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("Unidad") }
     var products by remember { mutableStateOf(prefs.getStringSet(PRODUCTS, emptySet())?.toList() ?: emptyList()) }
@@ -50,6 +51,12 @@ private fun HomeScreen(context: Context) {
             .putFloat(SALES_TOTAL, salesTotal.toFloat())
             .putFloat(SALES_PROFIT, salesProfit.toFloat()).apply()
     }
+
+    val quantity = quantityText.toDoubleOrNull()
+    val cost = costText.toDoubleOrNull()
+    val margin = marginText.toDoubleOrNull()
+    val recommendedPrice = if (cost != null && margin != null && margin >= 0 && margin < 100) cost * (1.0 + margin / 100.0) else null
+    val price = priceText.toDoubleOrNull()
 
     MaterialTheme {
         Surface(Modifier.fillMaxSize()) {
@@ -90,7 +97,7 @@ private fun HomeScreen(context: Context) {
                         OutlinedTextField(value = quantityText, onValueChange = { quantityText = it }, label = { Text("Cantidad") }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
                         Text("Unidad: $unit")
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                             listOf("Unidad", "Libra", "Arroba", "Quintal", "Saco").forEach { option ->
                                 OutlinedButton(onClick = { unit = option }) { Text(option) }
                             }
@@ -98,14 +105,18 @@ private fun HomeScreen(context: Context) {
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(value = costText, onValueChange = { costText = it }, label = { Text("Costo total") }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = marginText, onValueChange = { marginText = it }, label = { Text("Margen deseado (%)") }, modifier = Modifier.fillMaxWidth())
+                        if (recommendedPrice != null) {
+                            Spacer(Modifier.height(6.dp))
+                            Text("Precio recomendado: $%.2f".format(recommendedPrice), style = MaterialTheme.typography.titleMedium)
+                            if (quantity != null && quantity > 0) Text("Recomendado por $unit: $%.2f".format(recommendedPrice / quantity))
+                        }
+                        Spacer(Modifier.height(8.dp))
                         OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text("Precio de venta total") }, modifier = Modifier.fillMaxWidth())
-                        val quantity = quantityText.toDoubleOrNull()
-                        val cost = costText.toDoubleOrNull()
-                        val price = priceText.toDoubleOrNull()
                         if (quantity != null && quantity > 0 && cost != null && price != null) {
                             Spacer(Modifier.height(8.dp))
                             Text("Ganancia: $%.2f".format(price - cost))
-                            Text("Margen: %.1f%%".format(if (price > 0) (price - cost) / price * 100 else 0.0))
+                            Text("Margen real: %.1f%%".format(if (price > 0) (price - cost) / price * 100 else 0.0))
                             Text("Costo por $unit: $%.2f".format(cost / quantity))
                             Text("Venta por $unit: $%.2f".format(price / quantity))
                         }
