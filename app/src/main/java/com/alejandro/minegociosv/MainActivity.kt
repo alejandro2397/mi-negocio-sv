@@ -32,6 +32,7 @@ private fun HomeScreen(context: Context) {
     var quantityText by remember { mutableStateOf("1") }
     var costText by remember { mutableStateOf("") }
     var priceText by remember { mutableStateOf("") }
+    var unit by remember { mutableStateOf("Unidad") }
     var products by remember { mutableStateOf(prefs.getStringSet(PRODUCTS, emptySet())?.toList() ?: emptyList()) }
     var salesCount by remember { mutableStateOf(prefs.getInt(SALES_COUNT, 0)) }
     var salesTotal by remember { mutableStateOf(prefs.getFloat(SALES_TOTAL, 0f).toDouble()) }
@@ -88,6 +89,13 @@ private fun HomeScreen(context: Context) {
                         Spacer(Modifier.height(12.dp))
                         OutlinedTextField(value = quantityText, onValueChange = { quantityText = it }, label = { Text("Cantidad") }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
+                        Text("Unidad: $unit")
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("Unidad", "Libra", "Arroba", "Quintal", "Saco").forEach { option ->
+                                OutlinedButton(onClick = { unit = option }) { Text(option) }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
                         OutlinedTextField(value = costText, onValueChange = { costText = it }, label = { Text("Costo total") }, modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text("Precio de venta total") }, modifier = Modifier.fillMaxWidth())
@@ -98,13 +106,11 @@ private fun HomeScreen(context: Context) {
                             Spacer(Modifier.height(8.dp))
                             Text("Ganancia: $%.2f".format(price - cost))
                             Text("Margen: %.1f%%".format(if (price > 0) (price - cost) / price * 100 else 0.0))
+                            Text("Costo por $unit: $%.2f".format(cost / quantity))
+                            Text("Venta por $unit: $%.2f".format(price / quantity))
                         }
                         Spacer(Modifier.height(12.dp))
-                        Button(
-                            enabled = quantity != null && quantity > 0 && cost != null && cost >= 0 && price != null && price >= cost,
-                            onClick = { saveSale(price!!, price - cost!!); quantityText = "1"; costText = ""; priceText = "" },
-                            modifier = Modifier.fillMaxWidth()
-                        ) { Text("Registrar venta") }
+                        Button(enabled = quantity != null && quantity > 0 && cost != null && cost >= 0 && price != null && price >= cost, onClick = { saveSale(price!!, price - cost!!); quantityText = "1"; costText = ""; priceText = "" }, modifier = Modifier.fillMaxWidth()) { Text("Registrar venta") }
                         Spacer(Modifier.height(12.dp))
                         Text("Ventas: $salesCount")
                         Text("Total vendido: $%.2f".format(salesTotal))
